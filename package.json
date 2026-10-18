@@ -1,0 +1,16 @@
+{
+  "name": "kage-shadow-of-the-valley",
+  "version": "1.0.0",
+  "description": "KAGE — Shadow of the Valley. A browser-based 3D combat adventure with an open valley, sword combat, and Arabic UI.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node scripts/serve.mjs --open",
+    "dev": "node scripts/serve.mjs",
+    "check": "node scripts/check.mjs",
+    "build": "node scripts/build.mjs"
+  },
+  "dependencies": {
+    "three": "0.180.0"
+  }
+}

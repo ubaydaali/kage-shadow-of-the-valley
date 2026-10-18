@@ -1,0 +1,29 @@
+# Local dependencies and build caches
+node_modules/
+.cache/
+coverage/
+
+# Credentials and private configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+.npmrc
+.openai/
+.codex/
+.agents/
+
+# Local reports, archives, and editor files
+qa-output/
+*.log
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
