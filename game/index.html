@@ -1,20 +1,29 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#101e1c"><meta name="description" content="KAGE — مغامرة نينجا قتالية ثلاثية الأبعاد في وادي الأصداء.">
   <title>KAGE — ظل الوادي</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23101e1c'/%3E%3Cpath d='M32 7 38 25 57 32 38 39 32 57 25 39 7 32 25 25Z' fill='%23d9b97b'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="mobile.css">
   <script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/"}}</script>
 </head>
 <body>
   <canvas id="game" aria-label="عالم لعبة ظل الوادي ثلاثي الأبعاد"></canvas>
   <div class="vignette"></div><div id="hurt"></div>
+  <section id="orientation-gate" class="orientation-gate" role="dialog" aria-modal="true" aria-labelledby="orientation-title" aria-hidden="true">
+    <span class="eyebrow">KAGE · SHADOW OF THE VALLEY</span>
+    <div class="rotate-phone" aria-hidden="true"><span>↻</span><i></i></div>
+    <h2 id="orientation-title">أدِر الهاتف أفقيًا</h2>
+    <p>اللعبة مصمّمة للوضع الأفقي.<br>دوّر جهازك لتبدأ أو تتابع رحلتك في الوادي.</p>
+    <button id="rotate-fullscreen" class="primary" type="button">ملء الشاشة والوضع الأفقي <span>⛶</span></button>
+    <small>إن لم يتغيّر الاتجاه تلقائيًا، فعّل تدوير الشاشة من هاتفك وأدِره يدويًا.</small>
+  </section>
   <header class="topbar">
     <a class="wordmark" href="#" id="brand" aria-label="إيقاف مؤقت"><span class="crest">影</span><span>K A G E<small>SHADOW OF THE VALLEY</small></span></a>
     <div class="region"><span class="eyebrow">THE ECHOING VALLEY</span><span>وادي الأصداء <i></i> عالم مفتوح</span></div>
-    <div class="top-actions"><button id="sound" class="icon-button" title="تفعيل أو إيقاف الصوت" aria-label="الصوت">♪</button><button id="pause" class="icon-button" title="إيقاف مؤقت" aria-label="إيقاف مؤقت">Ⅱ</button></div>
+    <div class="top-actions"><button id="fullscreen" class="icon-button" title="ملء الشاشة" aria-label="ملء الشاشة" aria-pressed="false">⛶</button><button id="sound" class="icon-button" title="تفعيل أو إيقاف الصوت" aria-label="الصوت">♪</button><button id="pause" class="icon-button" title="إيقاف مؤقت" aria-label="إيقاف مؤقت">Ⅱ</button></div>
   </header>
   <main id="hud" class="hidden">
     <section class="vitals" aria-label="حالة اللاعب"><div class="player-name"><span class="mini-crest">影</span><div><strong>كــاي</strong><span>حارس الوادي</span></div><b id="level">01</b></div><div class="meter-label"><span>الحيوية</span><span id="health-label">100 / 100</span></div><div class="meter health"><i id="health-bar"></i></div><div class="meter stamina"><i id="stamina-bar"></i></div><div class="stamina-label">طاقة الظل</div></section>
@@ -28,15 +37,26 @@
     <div class="bottom-left"><div class="currency"><span>✧</span><b id="essence">0</b><small>جوهر الظل</small></div><div class="save-status">◈ <span id="save-status">يُحفظ التقدم تلقائيًا</span></div></div>
     <div class="abilities" dir="ltr"><div class="ability"><kbd>Q</kbd><span class="ability-symbol">✺</span><div><b>عاصفة الظل</b><small id="special-status">جاهزة</small></div><i id="special-cooldown"></i></div><div class="ability compact"><kbd>E</kbd><span>استشفاء</span><b id="potions">3</b></div></div>
     <div class="control-strip"><span><kbd>W A S D</kbd> حركة</span><span><kbd>SHIFT</kbd> ركض</span><span><kbd>SPACE</kbd> قفز</span><span><kbd>J / 🖱</kbd> هجوم</span><span><kbd>K</kbd> مراوغة</span><span><kbd>F</kbd> صدّ</span><span><kbd>V</kbd> تثبيت الكاميرا</span><span><kbd>ESC</kbd> قائمة</span></div>
-    <div id="interact" class="hidden"><kbd>R</kbd><span>استرح عند المزار</span></div>
-    <div id="touch"><div id="joystick"><i></i></div><div class="touch-buttons"><button data-action="jump">قفز</button><button data-action="dodge">مراوغة</button><button data-action="attack" class="touch-attack">ضربة</button><button data-action="special">عاصفة</button></div></div>
+    <button id="interact" class="hidden" type="button" data-action="rest" aria-label="استرح عند المزار"><kbd>R</kbd><span>استرح عند المزار</span></button>
+    <div id="touch" aria-label="التحكم باللمس">
+      <div id="joystick" aria-label="عصا الحركة"><i></i></div>
+      <button id="touch-sprint" type="button" data-action="sprint" aria-label="تبديل الركض والمشي" aria-pressed="false"><b aria-hidden="true">»</b><span>ركض</span></button>
+      <div class="touch-buttons">
+        <button type="button" data-action="block" aria-label="اضغط مطولًا للصدّ"><b aria-hidden="true">◇</b><span>صدّ</span></button>
+        <button type="button" data-action="jump" aria-label="قفز"><b aria-hidden="true">↑</b><span>قفز</span></button>
+        <button type="button" data-action="dodge" aria-label="مراوغة"><b aria-hidden="true">↝</b><span>مراوغة</span></button>
+        <button type="button" data-action="special" aria-label="عاصفة الظل"><b aria-hidden="true">✺</b><span>عاصفة</span><small id="touch-special-status">جاهزة</small></button>
+        <button type="button" data-action="attack" class="touch-attack" aria-label="هجوم بالسيف"><b aria-hidden="true">⚔</b><span>ضربة</span></button>
+        <button type="button" data-action="heal" aria-label="جرعة استشفاء"><b aria-hidden="true">✚</b><span>استشفاء</span><small id="touch-potions">3</small></button>
+      </div>
+    </div>
   </main>
   <section id="menu" class="menu">
-    <div class="menu-side"><div class="menu-kicker"><i></i> A SHINOBI'S JOURNEY</div><h1>صمتُ الوادي.<br><em>حدُّ السيف.</em></h1><p class="menu-description">بين أشجار الأرز ومعابد الضباب، ينتظر الوادي حارسه.<br>اسلك طريقك، واجه حراس الرماد، وأعِد النور إلى المزارات.</p><div class="menu-rule"></div><div class="menu-details"><span>عالم مفتوح</span><i>✦</i><span>قتال بالسيف</span><i>✦</i><span>طريقك الخاص</span></div><button id="play" class="primary" disabled><span id="play-label">جارٍ تجهيز الوادي</span><span class="button-arrow">←</span></button><div class="loading-track"><i id="loading-bar"></i></div><span id="loading-label">تحميل شخصية النينجا…</span><button id="controls-button" class="text-button">دليل المقاتل <span>↗</span></button><div class="menu-note">صُممت لتُستكشف. اضغط واسحب لتدوير الكاميرا.</div></div>
+    <div class="menu-side"><div class="menu-kicker"><i></i> A SHINOBI'S JOURNEY</div><h1>صمتُ الوادي.<br><em>حدُّ السيف.</em></h1><p class="menu-description">بين أشجار الأرز ومعابد الضباب، ينتظر الوادي حارسه.<br>اسلك طريقك، واجه حراس الرماد، وأعِد النور إلى المزارات.</p><div class="menu-rule"></div><div class="menu-details"><span>عالم مفتوح</span><i>✦</i><span>قتال بالسيف</span><i>✦</i><span>طريقك الخاص</span></div><button id="play" class="primary" disabled><span id="play-label">جارٍ تجهيز الوادي</span><span class="button-arrow">←</span></button><div class="loading-track"><i id="loading-bar"></i></div><span id="loading-label">تحميل شخصية النينجا…</span><button id="controls-button" class="text-button">دليل المقاتل <span>↗</span></button><p class="touch-tip">اللعب بالوضع الأفقي · اسحب المشهد للكاميرا، وبإصبعين للتقريب.</p><div class="menu-note">صُممت لتُستكشف. اضغط واسحب لتدوير الكاميرا.</div></div>
     <div class="title-vertical" aria-hidden="true">影<span>の</span>谷</div><div class="scene-caption"><span>01 / THE CEDAR PASS</span><div></div><span>حين تختفي الأصوات، يبدأ طريق النينجا.</span></div><div class="version">KAGE <span>·</span> CHAPTER I <span>·</span> BROWSER EDITION</div>
   </section>
   <section id="pause-menu" class="overlay hidden"><div class="panel"><span class="eyebrow">TAKE A BREATH</span><h2>لحظة هدوء</h2><p>الوادي ينتظر عودتك.</p><button id="resume" class="primary">متابعة الرحلة <span>←</span></button><button id="help-pause" class="secondary">دليل المقاتل</button><div class="settings"><label>جودة الرسوم <select id="quality"><option value="high">عالية</option><option value="low">خفيفة</option></select></label><label>حساسية الكاميرا <input id="sensitivity" type="range" min="0.3" max="2" step="0.1" value="1"></label><label>المؤثرات الصوتية <input id="audio-enabled" type="checkbox" checked></label></div><button id="reset" class="text-button">بدء رحلة جديدة</button></div></section>
-  <section id="help" class="overlay hidden"><div class="panel help-panel"><span class="eyebrow">THE WAY OF THE SHINOBI</span><h2>دليل المقاتل</h2><div class="help-grid"><p><kbd>W A S D / ↑↓←→</kbd><span>الحركة في اتجاه الكاميرا</span></p><p><kbd>الماوس / سحب</kbd><span>تدوير الكاميرا · عجلة الماوس للتقريب</span></p><p><kbd>J / نقرة يسار</kbd><span>سلسلة من ثلاث ضربات بالسيف</span></p><p><kbd>F / نقرة يمين</kbd><span>اضغط مطولًا للصدّ؛ صدّ في اللحظة المناسبة لردّ الضربة</span></p><p><kbd>K / ALT</kbd><span>مراوغة سريعة تستهلك الطاقة</span></p><p><kbd>Q</kbd><span>عاصفة الظل: ضربة دائرية للأعداء القريبين</span></p><p><kbd>SPACE / SHIFT</kbd><span>قفز / ركض سريع</span></p><p><kbd>E / R</kbd><span>جرعة استشفاء / راحة عند المزار</span></p><p><kbd>V</kbd><span>تثبيت مؤشر الماوس لتدوير الكاميرا بحرية</span></p></div><p class="help-note">حرّر المعسكرات الثلاثة لتفتح بوابة المعبد، ثم اهزم حارس المعبد. اقترب من الأعداء لبدء القتال. الأعداء يتوهجون بالأحمر قبل الهجوم.</p><button id="close-help" class="primary">فهمت الطريق <span>←</span></button></div></section>
+  <section id="help" class="overlay hidden"><div class="panel help-panel"><span class="eyebrow">THE WAY OF THE SHINOBI</span><h2>دليل المقاتل</h2><div class="help-grid keyboard-help"><p><kbd>W A S D / ↑↓←→</kbd><span>الحركة في اتجاه الكاميرا</span></p><p><kbd>الماوس / سحب</kbd><span>تدوير الكاميرا · عجلة الماوس للتقريب</span></p><p><kbd>J / نقرة يسار</kbd><span>سلسلة من ثلاث ضربات بالسيف</span></p><p><kbd>F / نقرة يمين</kbd><span>اضغط مطولًا للصدّ؛ صدّ في اللحظة المناسبة لردّ الضربة</span></p><p><kbd>K / ALT</kbd><span>مراوغة سريعة تستهلك الطاقة</span></p><p><kbd>Q</kbd><span>عاصفة الظل: ضربة دائرية للأعداء القريبين</span></p><p><kbd>SPACE / SHIFT</kbd><span>قفز / ركض سريع</span></p><p><kbd>E / R</kbd><span>جرعة استشفاء / راحة عند المزار</span></p><p><kbd>V</kbd><span>تثبيت مؤشر الماوس لتدوير الكاميرا بحرية</span></p></div><div class="help-grid touch-help"><p><kbd>عصا الحركة</kbd><span>حرّك العصا للمشي، واضغط زر الركض للتبديل بين الركض والمشي.</span></p><p><kbd>الكاميرا</kbd><span>اسحب المشهد بإصبع، أو قرّب وأبعد بإصبعين.</span></p><p><kbd>ضربة / صدّ</kbd><span>انقر للهجوم، واضغط مطولًا على الصدّ. التوقيت الدقيق يردّ ضربة العدو.</span></p><p><kbd>قفز / مراوغة</kbd><span>انقر الزر المناسب للقفز أو تفادي الضربات.</span></p><p><kbd>عاصفة / استشفاء</kbd><span>أطلق عاصفة الظل أو استخدم جرعة؛ يظهر عدد الجرعات ووقت إعادة الشحن.</span></p><p><kbd>راحة المزار</kbd><span>اقترب من المزار ثم انقر زر الراحة الذي يظهر أسفل المشهد.</span></p></div><p class="help-note">حرّر المعسكرات الثلاثة لتفتح بوابة المعبد، ثم اهزم حارس المعبد. اقترب من الأعداء لبدء القتال. الأعداء يتوهجون بالأحمر قبل الهجوم.</p><button id="close-help" class="primary">فهمت الطريق <span>←</span></button></div></section>
   <section id="end" class="overlay hidden"><div class="panel"><span class="eyebrow" id="end-kicker">THE JOURNEY CONTINUES</span><h2 id="end-title">سقط الظل</h2><p id="end-description">استعد أنفاسك وعد إلى الطريق.</p><div class="end-stats" id="end-stats"></div><button id="restart" class="primary">العودة إلى المزار <span>←</span></button></div></section>
   <noscript>تحتاج هذه اللعبة إلى تفعيل JavaScript في المتصفح.</noscript>
   <script type="module" src="main.js"></script>

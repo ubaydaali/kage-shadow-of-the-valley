@@ -2,22 +2,28 @@ import * as THREE from 'three';
 import { createWorld, heightAt, CAMPS, SHRINES, TEMPLE, WORLD_RADIUS } from './world.js';
 import { loadNinja, createFighter } from './character.js';
 import { GameAudio } from './audio.js';
+import { createMobileControls } from './mobile-controls.js';
 
 const $=id=>document.getElementById(id);
 const canvas=$('game');
+const touchDevice=matchMedia('(pointer: coarse)').matches||(navigator.maxTouchPoints>0&&innerWidth<=1024);
+const isPortrait=()=>touchDevice&&innerHeight>=innerWidth;
+document.body.classList.toggle('touch-mode',touchDevice);
+let mobileControls=null,renderDirty=true;
 let renderer;
-try{renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});}catch(error){$('play-label').textContent='المتصفح لا يدعم WebGL';$('loading-label').textContent='افتح اللعبة في متصفح حديث مع تفعيل تسريع الرسوم.';throw error;}
-renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.22;
+try{renderer=new THREE.WebGLRenderer({canvas,antialias:!touchDevice,powerPreference:touchDevice?'default':'high-performance'});}catch(error){$('play-label').textContent='المتصفح لا يدعم WebGL';$('loading-label').textContent='افتح اللعبة في متصفح حديث مع تفعيل تسريع الرسوم.';throw error;}
+renderer.setPixelRatio(Math.min(devicePixelRatio,touchDevice?1:1.7));renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=!touchDevice;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.22;
 const scene=new THREE.Scene();scene.fog=new THREE.FogExp2(0x9eafa0,.009);
 const camera=new THREE.PerspectiveCamera(53,innerWidth/innerHeight,.1,520);
 scene.add(new THREE.HemisphereLight(0xd1e4da,0x45573c,2.1));
 const sunlight=new THREE.DirectionalLight(0xffe3ad,3.6);sunlight.position.set(-35,65,-45);sunlight.castShadow=true;sunlight.shadow.mapSize.set(2048,2048);sunlight.shadow.camera.left=-38;sunlight.shadow.camera.right=38;sunlight.shadow.camera.top=38;sunlight.shadow.camera.bottom=-38;sunlight.shadow.camera.near=1;sunlight.shadow.camera.far=160;sunlight.shadow.bias=-.00035;sunlight.shadow.normalBias=.08;scene.add(sunlight,sunlight.target);
 const world=createWorld(scene);
+if(touchDevice){world.grassMesh.visible=false;$('quality').value='low';}
 const audio=new GameAudio();
 const keys=new Set();const pointer={down:false,x:0,y:0,moved:0,button:0};
 const up=new THREE.Vector3(0,1,0),moveVector=new THREE.Vector3(),camTarget=new THREE.Vector3(),desiredCamera=new THREE.Vector3(),temp=new THREE.Vector3();
 const clock=new THREE.Clock();
-let elapsed=0,mode='loading',player,hero,ready=false,yaw=0,pitch=.22,zoom=6.2,sensitivity=1,shake=0,hitStop=0;
+let elapsed=0,mode='loading',player,hero,ready=false,yaw=0,pitch=.22,zoom=touchDevice?7.2:6.2,sensitivity=1,shake=0,hitStop=0;
 let enemies=[],effects=[],pickups=[],cleared=[false,false,false],bossAwake=false,bossDefeated=false,kills=0,essence=0,potions=3;
 let attackBuffer=0,comboIndex=0,lastAttack=-10,specialCooldown=0,blockStarted=-10;
 let zoneTimer=0,messageTimer=0,hurtTimer=0,comboTimer=0,saveTimer=0,aiTimer=0,helpFrom='menu',currentZone='',victoryShown=false;
@@ -35,18 +41,22 @@ function save(){
   try{localStorage.setItem(SAVE_KEY,JSON.stringify(data));$('save-status').textContent='تم حفظ الرحلة';}catch{$('save-status').textContent='الحفظ غير متاح في هذا المتصفح';}
 }
 function resetSave(){try{localStorage.removeItem(SAVE_KEY);}catch{}location.reload();}
-function setMode(next){mode=next;keys.clear();touchMove.x=touchMove.y=0;state.block=false;pointer.down=false;if(document.pointerLockElement&&next!=='playing')document.exitPointerLock();}
+function setMode(next){mode=next;keys.clear();touchMove.x=touchMove.y=0;state.block=false;pointer.down=false;mobileControls?.reset();renderDirty=true;if(document.pointerLockElement&&next!=='playing')document.exitPointerLock();}
 function pause(){if(mode==='playing'){setMode('paused');$('pause-menu').classList.remove('hidden');}else if(mode==='paused')resume();}
-function resume(){$('pause-menu').classList.add('hidden');$('help').classList.add('hidden');setMode('playing');audio.init();}
+function resume(){if(isPortrait())return;$('pause-menu').classList.add('hidden');$('help').classList.add('hidden');setMode('playing');audio.init();}
 function showHelp(){helpFrom=mode;if(mode==='playing')setMode('paused');$('help').classList.remove('hidden');}
 function closeHelp(){$('help').classList.add('hidden');if(helpFrom==='playing')resume();}
 
-function setQuality(value){const low=value==='low';renderer.setPixelRatio(Math.min(devicePixelRatio,low?1:1.7));renderer.shadowMap.enabled=!low;world.grassMesh.visible=!low;scene.traverse(o=>{if(o.material)o.material.needsUpdate=true;});}
+function setQuality(value){const low=value==='low';renderer.setPixelRatio(Math.min(devicePixelRatio,low?1:touchDevice?1.35:1.7));renderer.shadowMap.enabled=!low;world.grassMesh.visible=!low;scene.traverse(o=>{if(o.material)o.material.needsUpdate=true;});renderDirty=true;}
 function toggleSound(){audio.enabled=!audio.enabled;$('sound').textContent=audio.enabled?'♪':'♩';$('sound').style.opacity=audio.enabled?'1':'.45';$('audio-enabled').checked=audio.enabled;if(audio.enabled)audio.init();}
 $('quality').addEventListener('change',e=>setQuality(e.target.value));$('sensitivity').addEventListener('input',e=>sensitivity=+e.target.value);
 $('sound').addEventListener('click',toggleSound);$('audio-enabled').addEventListener('change',e=>{audio.enabled=e.target.checked;$('sound').style.opacity=audio.enabled?'1':'.45';});
 $('pause').addEventListener('click',pause);$('brand').addEventListener('click',e=>{e.preventDefault();pause();});$('resume').addEventListener('click',resume);$('controls-button').addEventListener('click',showHelp);$('help-pause').addEventListener('click',showHelp);$('close-help').addEventListener('click',closeHelp);
 $('reset').addEventListener('click',()=>{if($('reset').dataset.confirm==='yes')resetSave();else{$('reset').textContent='اضغط مرة أخرى لمسح التقدم والبدء';$('reset').dataset.confirm='yes';}});
+if(!document.fullscreenEnabled||!document.documentElement.requestFullscreen){$('fullscreen').classList.add('hidden');$('rotate-fullscreen').classList.add('hidden');}
+async function enterFullscreen(toggle=false){try{if(toggle&&document.fullscreenElement){await document.exitFullscreen();return;}if(!document.fullscreenElement)await document.documentElement.requestFullscreen();if(touchDevice&&screen.orientation?.lock){try{await screen.orientation.lock('landscape');}catch{}}}catch{toast('يمكنك متابعة اللعب في نافذة المتصفح',2);}}
+$('fullscreen').addEventListener('click',()=>enterFullscreen(true));$('rotate-fullscreen').addEventListener('click',()=>enterFullscreen());
+document.addEventListener('fullscreenchange',()=>{$('fullscreen').setAttribute('aria-pressed',String(!!document.fullscreenElement));resizeViewport();});
 
 function playerGround(x,z){if((Math.abs(x)<1.85||Math.abs(x-34)<1.85)&&Math.abs(z+51)<5.2){return .2+Math.cos((z+51)/5.2*Math.PI/2)*.6;}return heightAt(x,z);}
 function resolvePosition(position,delta,radius=.38){
@@ -112,9 +122,10 @@ function jump(){if(mode==='playing'&&!state.dead&&state.air<=.001&&state.dodge<=
 
 function updatePlayer(dt){
   state.invulnerable=Math.max(0,state.invulnerable-dt);specialCooldown=Math.max(0,specialCooldown-dt);attackBuffer=Math.max(0,attackBuffer-dt);
-  state.block=(keys.has('KeyF')||keys.has('MouseRight'))&&state.dodge<=0&&state.attack<=0&&state.special<=0&&!state.dead;
+  state.block=(keys.has('KeyF')||keys.has('MouseRight')||keys.has('TouchBlock'))&&state.dodge<=0&&state.attack<=0&&state.special<=0&&!state.dead;
   let moving=getMoveVector(moveVector).lengthSq()>.005;
-  const sprint=(keys.has('ShiftLeft')||keys.has('ShiftRight'))&&state.stamina>2&&moving&&!state.block;
+  if(state.stamina<=2&&keys.has('TouchSprint'))mobileControls?.setSprint(false);
+  const sprint=(keys.has('ShiftLeft')||keys.has('ShiftRight')||keys.has('TouchSprint'))&&state.stamina>2&&moving&&!state.block;
   let targetSpeed=state.dead?0:state.block?1.5:sprint?7.5:4.3;
   if(state.attack>0)targetSpeed*=.25;if(state.special>0)targetSpeed=0;
   if(!moving)targetSpeed=0;state.speed=THREE.MathUtils.damp(state.speed,targetSpeed,12,dt);
@@ -189,6 +200,10 @@ function updateHUD(){
   if(bossDefeated){$('quest-text').textContent='أُنجز العهد. الوادي حرّ — استكشف ما تشاء.';$('quest-hint').textContent='عاد السلام إلى المزارات';}
   else if(bossAwake){$('quest-text').textContent='اعبر البوابة واهزم حارس المعبد في الشمال.';$('quest-hint').textContent='المواجهة الأخيرة · معبد الصدى';}
   $('special-status').textContent=specialCooldown>0?`${Math.ceil(specialCooldown)} ث`:'جاهزة';$('special-cooldown').style.transform=`translateY(${100-specialCooldown/11*100}%)`;
+  $('touch-special-status').textContent=specialCooldown>0?`${Math.ceil(specialCooldown)} ث`:'جاهزة';$('touch-potions').textContent=potions;
+  const touchSpecial=document.querySelector('[data-action="special"]'),touchHeal=document.querySelector('[data-action="heal"]');
+  touchSpecial.disabled=(specialCooldown>0||state.stamina<40)&&!touchSpecial.classList.contains('is-pressed');
+  touchHeal.disabled=potions<=0&&!touchHeal.classList.contains('is-pressed');
   const near=closestEnemy(12);$('target').classList.toggle('hidden',!near);if(near){$('target-name').textContent=near.boss?'حارس المعبد · سيد الرماد':'حارس الرماد';$('target-health').style.width=Math.max(0,near.health/near.maxHealth*100)+'%';}
   const shrine=SHRINES.some(s=>Math.hypot(player.position.x-s.x,player.position.z-s.z)<3.5);$('interact').classList.toggle('hidden',!shrine);
   const directions=['N','NE','E','SE','S','SW','W','NW'];const idx=Math.round(THREE.MathUtils.euclideanModulo(-yaw,Math.PI*2)/(Math.PI/4))%8;$('heading').textContent=directions[idx];
@@ -218,18 +233,24 @@ document.addEventListener('keydown',e=>{
 });document.addEventListener('keyup',e=>keys.delete(e.code));
 addEventListener('blur',()=>{keys.clear();if(mode==='playing')pause();});document.addEventListener('visibilitychange',()=>{if(document.hidden&&mode==='playing')pause();});
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
-document.addEventListener('pointerdown',e=>{if(e.target.closest('button,a,input,select,#joystick,.touch-buttons'))return;if(mode!=='playing')return;pointer.down=true;pointer.x=e.clientX;pointer.y=e.clientY;pointer.moved=0;pointer.button=e.button;if(e.button===2){keys.add('MouseRight');blockStarted=elapsed;}if(document.pointerLockElement&&e.button===0)beginAttack();});
-document.addEventListener('pointermove',e=>{if(mode!=='playing')return;if(pointer.down||document.pointerLockElement){const dx=document.pointerLockElement?e.movementX:e.clientX-pointer.x,dy=document.pointerLockElement?e.movementY:e.clientY-pointer.y;pointer.moved+=Math.abs(dx)+Math.abs(dy);yaw-=dx*.004*sensitivity;pitch=THREE.MathUtils.clamp(pitch+dy*.003*sensitivity,-.2,1.05);pointer.x=e.clientX;pointer.y=e.clientY;}});
-document.addEventListener('pointerup',e=>{if(pointer.down&&e.button===0&&pointer.moved<8&&!document.pointerLockElement)beginAttack();pointer.down=false;keys.delete('MouseRight');});
+document.addEventListener('pointerdown',e=>{if(e.pointerType!=='mouse'||e.target.closest('button,a,input,select,#joystick,.touch-buttons'))return;if(mode!=='playing')return;pointer.down=true;pointer.id=e.pointerId;pointer.x=e.clientX;pointer.y=e.clientY;pointer.moved=0;pointer.button=e.button;if(e.button===2){keys.add('MouseRight');blockStarted=elapsed;}if(document.pointerLockElement&&e.button===0)beginAttack();});
+document.addEventListener('pointermove',e=>{if(e.pointerType!=='mouse'||mode!=='playing')return;if(pointer.down||document.pointerLockElement){const dx=document.pointerLockElement?e.movementX:e.clientX-pointer.x,dy=document.pointerLockElement?e.movementY:e.clientY-pointer.y;pointer.moved+=Math.abs(dx)+Math.abs(dy);yaw-=dx*.004*sensitivity;pitch=THREE.MathUtils.clamp(pitch+dy*.003*sensitivity,-.2,1.05);pointer.x=e.clientX;pointer.y=e.clientY;}});
+function endMouse(e){if(e.pointerType!=='mouse'||e.pointerId!==pointer.id)return;if(e.type==='pointerup'&&pointer.down&&e.button===0&&pointer.moved<8&&!document.pointerLockElement)beginAttack();pointer.down=false;keys.delete('MouseRight');}
+document.addEventListener('pointerup',endMouse);document.addEventListener('pointercancel',endMouse);
 canvas.addEventListener('wheel',e=>{if(mode==='playing'){e.preventDefault();zoom=THREE.MathUtils.clamp(zoom+e.deltaY*.005,3.4,10);}}, {passive:false});
-const stick=$('joystick'),knob=stick.querySelector('i');let stickId=null;
-stick.addEventListener('pointerdown',e=>{stickId=e.pointerId;stick.setPointerCapture(e.pointerId);updateStick(e);});stick.addEventListener('pointermove',e=>{if(e.pointerId===stickId)updateStick(e);});
-function updateStick(e){const r=stick.getBoundingClientRect(),dx=e.clientX-r.left-r.width/2,dy=e.clientY-r.top-r.height/2,len=Math.hypot(dx,dy),s=Math.min(len,35)/(len||1);touchMove.x=dx*s/35;touchMove.y=dy*s/35;knob.style.transform=`translate(${dx*s}px,${dy*s}px)`;}
-function resetStick(){stickId=null;touchMove.x=touchMove.y=0;knob.style.transform='';}stick.addEventListener('pointerup',resetStick);stick.addEventListener('pointercancel',resetStick);
-for(const b of document.querySelectorAll('[data-action]'))b.addEventListener('pointerdown',e=>{e.preventDefault();({jump,dodge,attack:beginAttack,special})[b.dataset.action]();});
-addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+mobileControls=createMobileControls({canvas,canPlay:()=>mode==='playing'&&!state.dead&&!isPortrait(),
+  move:(x,y)=>{touchMove.x=x;touchMove.y=y;},
+  look:(dx,dy)=>{yaw-=dx*.004*sensitivity;pitch=THREE.MathUtils.clamp(pitch+dy*.003*sensitivity,-.2,1.05);},
+  zoom:delta=>{zoom=THREE.MathUtils.clamp(zoom+delta,3.4,10);},
+  actions:{jump,dodge,attack:beginAttack,special,heal,rest},
+  block:active=>{if(active){keys.add('TouchBlock');blockStarted=elapsed;}else keys.delete('TouchBlock');},
+  sprint:active=>{if(active)keys.add('TouchSprint');else keys.delete('TouchSprint');}
+});
+function checkOrientation(){const portrait=isPortrait();document.body.classList.toggle('is-portrait',portrait);$('orientation-gate').setAttribute('aria-hidden',String(!portrait));if(portrait){mobileControls?.reset();if(mode==='playing')pause();}}
+function resizeViewport(){mobileControls?.reset();checkOrientation();camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderDirty=true;}
+addEventListener('resize',resizeViewport);window.visualViewport?.addEventListener('resize',resizeViewport);screen.orientation?.addEventListener('change',resizeViewport);checkOrientation();
 
-$('play').addEventListener('click',()=>{if(!ready)return;audio.init();$('menu').classList.add('hidden');$('hud').classList.remove('hidden');setMode('playing');yaw=0;player.rotation.y=0;discover('ممر الأرز');toast('العهد يبدأ هنا · حرّك الشخصية باستخدام WASD',4);});
+$('play').addEventListener('click',()=>{if(!ready||isPortrait())return;audio.init();$('menu').classList.add('hidden');$('hud').classList.remove('hidden');setMode('playing');yaw=0;player.rotation.y=0;discover('ممر الأرز');toast(touchDevice?'حرّك العصا للمشي · اسحب المشهد لتدوير الكاميرا':'العهد يبدأ هنا · حرّك الشخصية باستخدام WASD',4);});
 
 async function init(){
   try{
@@ -243,17 +264,17 @@ async function init(){
   }catch(error){console.error('Unable to load ninja',error);$('play-label').textContent='إعادة محاولة التحميل';$('play').disabled=false;$('loading-label').textContent='تعذر تحميل الشخصية. تحقق من الاتصال ثم أعد المحاولة.';$('play').addEventListener('click',()=>location.reload(),{once:true});}
 }
 init();
-function loop(){requestAnimationFrame(loop);const rawDt=Math.min(clock.getDelta(),.05);let dt=rawDt;if(mode==='playing'&&hitStop>0){hitStop-=rawDt;dt*=.12;}if(mode==='playing'||mode==='menu'||mode==='loading')elapsed+=dt;
-  if(mode==='playing'){
+function loop(){requestAnimationFrame(loop);const rawDt=Math.min(clock.getDelta(),.05),landscapeReady=!isPortrait();let dt=rawDt;if(mode==='playing'&&hitStop>0){hitStop-=rawDt;dt*=.12;}if(landscapeReady&&(mode==='playing'||mode==='menu'||mode==='loading'))elapsed+=dt;
+  if(mode==='playing'&&landscapeReady){
     updatePlayer(dt);updateEnemies(dt);updateEffects(dt);world.update(elapsed);
     zoneTimer-=dt;if(zoneTimer<=0)$('zone').style.opacity=0;messageTimer-=dt;if(messageTimer<=0)$('message').style.opacity=0;comboTimer-=dt;if(comboTimer<=0)$('combo').style.opacity=0;
     hurtTimer=Math.max(0,hurtTimer-dt);$('hurt').style.opacity=hurtTimer>0?Math.min(1,hurtTimer*2):0;
     saveTimer+=dt;if(saveTimer>8){saveTimer=0;save();}if(elapsed-lastHud>.1){lastHud=elapsed;updateHUD();}
-  }else if(mode==='menu'||mode==='loading'){world.update(elapsed);if(hero)hero.animate(dt,elapsed,{});}
-  if(mode==='playing'||mode==='menu'||mode==='loading')updateCamera(rawDt);
-  renderer.render(scene,camera);
+  }else if(landscapeReady&&(mode==='menu'||mode==='loading')){world.update(elapsed);if(hero)hero.animate(dt,elapsed,{});}
+  if(landscapeReady&&(mode==='playing'||mode==='menu'||mode==='loading'))updateCamera(rawDt);
+  if(landscapeReady&&(mode==='playing'||mode==='menu'||mode==='loading'||renderDirty)){renderer.render(scene,camera);renderDirty=false;}
 }
 loop();
 
 // Read-only state for diagnostics and integrations; gameplay uses the same live state.
-export function inspectGame(){return {mode,time:elapsed,player:player?{x:player.position.x,y:player.position.y,z:player.position.z,rotation:player.rotation.y}:null,health:state.health,stamina:state.stamina,air:state.air,attack:state.attack,dodge:state.dodge,special:state.special,specialCooldown,cleared:[...cleared],bossAwake,bossDefeated,kills,essence,potions,enemies:enemies.map(e=>({x:e.root.position.x,z:e.root.position.z,health:e.health,dead:e.dead,boss:e.boss,camp:e.camp,windup:e.windup,attack:e.attack})),render:renderer.info.render};}
+export function inspectGame(){return {mode,time:elapsed,player:player?{x:player.position.x,y:player.position.y,z:player.position.z,rotation:player.rotation.y}:null,health:state.health,stamina:state.stamina,air:state.air,attack:state.attack,dodge:state.dodge,block:state.block,sprint:keys.has('TouchSprint'),speed:state.speed,controls:{touch:touchDevice,move:{...touchMove},yaw,pitch,zoom},quality:$('quality').value,pixelRatio:renderer.getPixelRatio(),special:state.special,specialCooldown,cleared:[...cleared],bossAwake,bossDefeated,kills,essence,potions,enemies:enemies.map(e=>({x:e.root.position.x,z:e.root.position.z,health:e.health,dead:e.dead,boss:e.boss,camp:e.camp,windup:e.windup,attack:e.attack})),render:renderer.info.render};}

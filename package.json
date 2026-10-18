@@ -9,9 +9,14 @@
     "start": "node scripts/serve.mjs --open",
     "dev": "node scripts/serve.mjs",
     "check": "node scripts/check.mjs",
-    "build": "node scripts/build.mjs"
+    "build": "node scripts/build.mjs",
+    "test": "node --test tests/server.test.mjs",
+    "test:mobile": "node tests/mobile.test.mjs"
   },
   "dependencies": {
     "three": "0.180.0"
+  },
+  "devDependencies": {
+    "playwright": "1.64.1"
   }
 }
