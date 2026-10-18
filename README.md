@@ -11,9 +11,10 @@
 ![Browser game](https://img.shields.io/badge/Platform-Web_Browser-294b3d?style=flat-square)
 ![Single player](https://img.shields.io/badge/Mode-Single_Player-d7ba80?style=flat-square&labelColor=172b23)
 ![Arabic interface](https://img.shields.io/badge/Interface-Arabic-597653?style=flat-square)
+[![License: MIT](https://img.shields.io/badge/License-MIT-d7ba80?style=flat-square&labelColor=172b23)](LICENSE)
 [![Repository views](https://hits.sh/kage-shadow-of-the-valley.ubayda-ai.svg?style=flat-square&label=Repository%20views&color=d7ba80&labelColor=172b23)](https://hits.sh/kage-shadow-of-the-valley.ubayda-ai/)
 
-[عن اللعبة](#عن-اللعبة) · [التشغيل](#التشغيل) · [التحكم](#التحكم) · [التواصل](#التواصل)
+[عن اللعبة](#عن-اللعبة) · [التشغيل](#التشغيل) · [التحكم](#التحكم) · [الترخيص](#الترخيص) · [التواصل](#التواصل)
 
 ![مشهد من لعبة KAGE: النينجا في ممر الأرز](docs/gameplay.png)
 
@@ -142,6 +143,16 @@ npm run dev
 ## عدّاد المشاهدات
 
 تظهر شارة مشاهدات المستودع أعلى الصفحة. تعكس الشارة مرات تحميلها من خدمة العدّاد، وليست إحصاءً دقيقًا للزوار الفريدين. [تفاصيل خدمة العدّاد](https://github.com/silentsoft/hits).
+
+## الترخيص
+
+هذه اللعبة متاحة تحت **[رخصة MIT](LICENSE)**، بما يشمل الكود والتوثيق وأصول اللعبة الخاصة بالمشروع.
+
+يمكنك استخدامها في دروسك ومشاريعك، وتعديلها، ونسخها، وإعادة توزيعها، وبيعها أو بناء منتجات تجارية عليها، دون دفع رسوم أو طلب إذن إضافي. لا تُلزمك الرخصة بنشر تعديلاتك أو فتح مصدر منتجك.
+
+عند توزيع نسخ من المشروع أو أجزاء جوهرية منه، يجب الاحتفاظ بنص الرخصة وإشعار حقوق النشر. يُقدَّم المشروع كما هو، دون ضمانات، وفق النص الكامل في ملف `LICENSE`.
+
+Copyright © 2026 Ubayda Ali. تُحفظ تراخيص المكونات المرفقة وإشعاراتها الأصلية؛ راجع [إشعارات الطرف الثالث](THIRD_PARTY_NOTICES.md).
 
 ## التواصل
 

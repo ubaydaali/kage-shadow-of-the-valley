@@ -1,6 +1,7 @@
 {
   "name": "kage-shadow-of-the-valley",
   "version": "1.0.0",
+  "license": "MIT",
   "description": "KAGE — Shadow of the Valley. A browser-based 3D combat adventure with an open valley, sword combat, and Arabic UI.",
   "type": "module",
   "private": true,
